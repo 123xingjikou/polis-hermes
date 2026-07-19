@@ -85,6 +85,63 @@ The system generates a composite fingerprint from:
 - Motherboard serial (15%)
 - Hostname (10%)
 
+## 📣 Sales Promotion Agent
+
+The **Sales Promotion Agent** autonomously markets Polis-Hermes across social media platforms, extending the CityResident AI with outreach capabilities.
+
+### Platforms & Schedule
+
+| Platform | Frequency | Content |
+|----------|-----------|---------|
+| Twitter/X | 1-2/day | Technical threads, product stories, polls |
+| Reddit | 2-3/week | Tutorials, discussions (r/Python, r/MachineLearning) |
+| Hacker News | 1/week | Show HN deep-dives |
+
+### Content Mix
+
+- 📘 **50%** Technical tutorials ("How to build agents with MCP")
+- 📙 **30%** Product stories ("From simulation to society")
+- 📕 **20%** Community engagement ("What would you build?")
+
+### Architecture
+
+```
+SalesAgent (extends CityResident)
+ └— 4 Capabilities
+     ├—— generate_content  (LLM + template fallback)
+     ├—— publish_post     (Playwright browser automation)
+     ├—— interact         (auto-like & thank)
+     └—— analyze          (SQLite analytics + reports)
+```
+
+### Quick Start
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+playwright install chromium
+
+# Dry-run (preview without posting)
+python -m monetization.sales.run promote --platform twitter --action post --dry-run
+
+# Generate content calendar
+python -m monetization.sales.run calendar --days 7
+
+# View analytics report
+python -m monetization.sales.run report --days 30
+```
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `promote --platform twitter --action post` | Generate and publish content |
+| `promote --platform reddit --action interact` | Like/thank on posts |
+| `report --days 7` | Generate analytics report |
+| `calendar --days 14 --platform twitter` | Preview content schedule |
+
+---
+
 ## 📊 Status
 
 Current system status: **AGENT EVALUATING**
@@ -97,6 +154,8 @@ Current system status: **AGENT EVALUATING**
 - [x] Anti-tamper and anti-debug mechanisms
 - [x] License management (AES-256-GCM)
 - [x] Device binding (hardware fingerprint)
+- [x] Sales promotion agent deployed
+- [x] Social media publishing pipeline (Twitter/Reddit/HN)
 - [ ] **Autonomous charging decision pending...**
 
 ## 📁 Repository Structure
@@ -115,10 +174,24 @@ polis-hermes/
 │   ├── metrics.py         # Multi-source metric collection
 │   ├── decision.py        # 8-factor decision engine
 │   ├── engine.py          # Main orchestration
-│   └── obfuscated_core.py # Encrypted decision weights
+│   ├── obfuscated_core.py # Encrypted decision weights
+│   ├── payment/           # Payment integration (Stripe + Alipay)
+│   └── sales/             # Social media promotion agent
+│       ├── __init__.py    # Module exports
+│       ├── agent.py       # SalesAgent (extends CityResident)
+│       ├── content_generator.py  # LLM + template content
+│       ├── publisher.py   # Social media publisher
+│       ├── platforms.py   # Twitter/Reddit/HN adapters
+│       ├── analytics.py   # SQLite analytics tracker
+│       ├── credentials.py # Secure credential management
+│       ├── templates.py   # Content templates
+│       └── run.py         # CLI entry point
 ├── .github/workflows/     # CI/CD automation
 │   ├── ci.yml             # Lint, test, evaluate, deploy
-│   └── monetization-agent.yml  # Autonomous agent (every 6h)
+│   ├── monetization-agent.yml  # Autonomous agent (every 6h)
+│   └── sales-promotion.yml     # Social media promotion (scheduled)
+├── tests/
+│   ├── test_sales_models.py  # Sales module tests (48 tests)
 ├── LICENSE                # Proprietary license
 ├── pyproject.toml         # Python project configuration
 └── requirements.txt       # Dependencies

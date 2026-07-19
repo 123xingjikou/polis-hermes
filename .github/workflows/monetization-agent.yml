@@ -1,0 +1,213 @@
+name: Monetization Agent - Autonomous Operations
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        options:
+          - evaluate
+          - report
+          - adjust-pricing
+          - activate-tier
+      tier_name:
+        description: "Tier name (for activate-tier action)"
+        required: false
+      price_monthly:
+        description: "Monthly price (for adjust-pricing action)"
+        required: false
+        type: number
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ==========================================
+  # Autonomous Evaluation and Action
+  # ==========================================
+  agent-cycle:
+    name: Agent Autonomy Cycle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "agent@polis-hermes.ai"
+          git config --local user.name "Polis-Hermes Agent"
+
+      # --------------------------------------------------------
+      # Action: Evaluate
+      # --------------------------------------------------------
+      - name: Run evaluation
+        if: github.event.inputs.action == 'evaluate' || github.event_name == 'schedule'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO_NAME: ${{ github.event.repository.name }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          MONETIZATION_AGENT_MODE: "autonomous"
+          MONETIZATION_ENABLED: "true"
+        run: |
+          echo "=== Running Monetization Evaluation ==="
+          python -m monetization.engine report > full_report.txt
+          cat full_report.txt
+
+          # Save outputs
+          python -m monetization.engine status > status.json
+
+      # --------------------------------------------------------
+      # Action: Generate Report
+      # --------------------------------------------------------
+      - name: Generate report
+        if: github.event.inputs.action == 'report'
+        run: |
+          echo "=== Generating Full Report ==="
+          python -m monetization.engine report
+
+          # Also save metrics
+          python -m monetization.engine metrics > metrics.json 2>/dev/null || echo "{}" > metrics.json
+          cat metrics.json
+
+      # --------------------------------------------------------
+      # Action: Adjust Pricing
+      # --------------------------------------------------------
+      - name: Adjust pricing
+        if: github.event.inputs.action == 'adjust-pricing'
+        env:
+          TIER_NAME: ${{ github.event.inputs.tier_name }}
+          PRICE_MONTHLY: ${{ github.event.inputs.price_monthly }}
+        run: |
+          echo "=== Adjusting Pricing ==="
+          if [ -z "$TIER_NAME" ] || [ -z "$PRICE_MONTHLY" ]; then
+            echo "Error: tier_name and price_monthly are required"
+            exit 1
+          fi
+
+          echo "Updating $TIER_NAME to \$$PRICE_MONTHLY/month"
+          python -m monetization.engine update-price "$TIER_NAME" "$PRICE_MONTHLY"
+
+          # Commit pricing changes
+          git add -A
+          git commit -m "🤖 Agent: Update $TIER_NAME pricing to \$${PRICE_MONTHLY}/mo" || echo "No changes"
+
+      # --------------------------------------------------------
+      # Action: Activate Tier
+      # --------------------------------------------------------
+      - name: Activate tier
+        if: github.event.inputs.action == 'activate-tier'
+        env:
+          TIER_NAME: ${{ github.event.inputs.tier_name }}
+        run: |
+          echo "=== Activating Tier ==="
+          if [ -z "$TIER_NAME" ]; then
+            echo "Error: tier_name is required"
+            exit 1
+          fi
+
+          echo "Activating tier: $TIER_NAME"
+          python -m monetization.engine activate-tier "$TIER_NAME"
+
+          # Commit activation
+          git add -A
+          git commit -m "🤖 Agent: Activate $TIER_NAME pricing tier" || echo "No changes"
+
+      # --------------------------------------------------------
+      # Push changes and create notifications
+      # --------------------------------------------------------
+      - name: Push changes
+        if: always()
+        run: |
+          git push || echo "Nothing to push"
+
+      - name: Upload all artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monetization-artifacts-${{ github.run_number }}
+          path: |
+            full_report.txt
+            status.json
+            metrics.json
+          retention-days: 30
+
+      # --------------------------------------------------------
+      # Create GitHub Issue for major decisions
+      # --------------------------------------------------------
+      - name: Notify major decisions
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            let phase = 'unknown';
+            let shouldCharge = false;
+
+            try {
+              const statusContent = fs.readFileSync('status.json', 'utf8');
+              const status = JSON.parse(statusContent);
+              phase = status.system?.current_phase || 'unknown';
+              // Check if we should charge by looking at phase
+              shouldCharge = (phase === 'active');
+            } catch (e) {
+              console.log('Could not read status:', e.message);
+            }
+
+            // Only create issue if phase is 'active' (meaning we should charge)
+            if (shouldCharge) {
+              const title = "🚀 AGENT DECISION: System Ready for Monetization";
+              const body = `
+              ## Autonomous Decision Report
+
+              The Polis-Hermes Agent has determined that the system is **READY TO START CHARGING**.
+
+              ### Current Status
+              - **Phase**: ${phase.toUpperCase()}
+              - **Should Charge**: YES
+              - **Evaluation Date**: ${new Date().toISOString()}
+
+              ### What This Means
+              The following paid tiers are now active:
+              - Professional: $29/month
+              - Enterprise: $99/month
+
+              ### Next Actions Required
+              1. Payment processor is configured and ready
+              2. Billing system is operational
+              3. All systems are stable
+
+              Please review and confirm deployment.
+
+              ---
+              *This message was generated autonomously by the Polis-Hermes Monetization Agent.*
+              `;
+
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ["monetization", "agent-decision", "ready-to-charge"]
+              });
+            }

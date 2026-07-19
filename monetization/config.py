@@ -104,8 +104,19 @@ class MonetizationConfig:
     thresholds: ThresholdConfig = field(default_factory=ThresholdConfig)
     stripe_secret_key: str = ""
     stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
     paypal_client_id: str = ""
     paypal_client_secret: str = ""
+    alipay_app_id: str = ""
+    alipay_private_key: str = ""
+    alipay_public_key: str = ""
+    alipay_gateway: str = "https://openapi.alipay.com/gateway.do"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    payment_enabled: bool = False
     database_url: str = "sqlite:///monetization.db"
     github_token: str = ""
     github_repo_owner: str = ""
@@ -118,8 +129,20 @@ class MonetizationConfig:
         """Load configuration from environment variables."""
         self.stripe_secret_key = os.getenv("STRIPE_SECRET_KEY", self.stripe_secret_key)
         self.stripe_publishable_key = os.getenv("STRIPE_PUBLISHABLE_KEY", self.stripe_publishable_key)
+        self.stripe_webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", self.stripe_webhook_secret)
         self.paypal_client_id = os.getenv("PAYPAL_CLIENT_ID", self.paypal_client_id)
         self.paypal_client_secret = os.getenv("PAYPAL_CLIENT_SECRET", self.paypal_client_secret)
+        self.alipay_app_id = os.getenv("ALIPAY_APP_ID", self.alipay_app_id)
+        self.alipay_private_key = os.getenv("ALIPAY_PRIVATE_KEY", self.alipay_private_key)
+        self.alipay_public_key = os.getenv("ALIPAY_PUBLIC_KEY", self.alipay_public_key)
+        self.alipay_gateway = os.getenv("ALIPAY_GATEWAY", self.alipay_gateway)
+        self.smtp_host = os.getenv("SMTP_HOST", self.smtp_host)
+        self.smtp_port = int(os.getenv("SMTP_PORT", str(self.smtp_port)))
+        self.smtp_user = os.getenv("SMTP_USER", self.smtp_user)
+        self.smtp_password = os.getenv("SMTP_PASSWORD", self.smtp_password)
+        self.smtp_from = os.getenv("SMTP_FROM", self.smtp_from)
+        payment_enabled = os.getenv("PAYMENT_ENABLED", str(self.payment_enabled))
+        self.payment_enabled = payment_enabled.lower() in ("true", "1", "yes")
         self.database_url = os.getenv("DATABASE_URL", self.database_url)
         self.github_token = os.getenv("GITHUB_TOKEN", self.github_token)
         self.github_repo_owner = os.getenv("GITHUB_REPO_OWNER", self.github_repo_owner)
