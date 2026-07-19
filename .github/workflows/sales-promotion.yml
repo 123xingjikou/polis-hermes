@@ -31,6 +31,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.11"
+  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   # =================================================================
